@@ -1,4 +1,5 @@
-import {validateLesson, isComplete, pageComplete, freshState, restoreState} from './lesson-model.js';
+import {isComplete, pageComplete, freshState, restoreState} from './lesson-model.js';
+import {fetchLesson, LOAD_ERROR} from './feed.js';
 const app = document.querySelector('#app');
 const grade = document.body.dataset.grade;
 const labels = {a:'Α΄', b:'Β΄', c:'Γ΄', d:'Δ΄', e:'Ε΄', st:'Στ΄'};
@@ -9,21 +10,18 @@ function node(tag, text, className) {
  return el;
 }
 function message(text) { app.replaceChildren(node('p', text)); }
-async function json(path) {
- const response = await fetch(new URL(path, import.meta.url), {cache:'no-store'});
- if (!response.ok) throw new Error('HTTP ' + response.status);
- return response.json();
-}
+let loadRequest = 0;
 async function start() {
  if (!labels[grade]) { message('Δεν βρέθηκε η τάξη.'); return; }
  document.title = labels[grade] + ' Τάξη – Μάθημα Σήμερα | Student Player';
+ const request = ++loadRequest;
+ message('Το μάθημα φορτώνει…');
+ app.setAttribute('aria-busy', 'true');
  try {
-  const assignments = await json('../assignments.json');
-  if (!Object.hasOwn(assignments, grade)) throw new Error('Missing grade');
-  const id = assignments[grade];
-  if (id === null) { message('Δεν υπάρχει ενεργό μάθημα για σήμερα'); return; }
-  if (typeof id !== 'string' || !/^[a-z0-9-]+$/.test(id)) throw new Error('Invalid lesson');
-  const lesson = validateLesson(await json('../lessons/' + id + '.json'));
+  const lesson = await fetchLesson(grade);
+  if (request !== loadRequest) return;
+  if (lesson === null) { message('Δεν υπάρχει ενεργό μάθημα για σήμερα'); return; }
+  const id = lesson.id;
   const storageKey = 'student-player:' + grade + ':' + id;
   let state = freshState();
   let storageAvailable = true;
@@ -40,9 +38,14 @@ async function start() {
    const progress = node('progress');
    progress.max = lesson.pages.length; progress.value = state.step + 1;
    progress.setAttribute('aria-label', 'Πρόοδος μαθήματος');
-   app.append(node('p', 'Οθόνη ' + (state.step + 1) + ' από ' + lesson.pages.length + ' · Περίπου ' + page.minutes + ' λεπτά', 'progress'), progress);
+   app.append(node('p', 'Οθόνη ' + (state.step + 1) + ' από ' + lesson.pages.length + (page.minutes ? ' · Περίπου ' + page.minutes + ' λεπτά' : ''), 'progress'), progress);
    const heading = node('h2', page.title);
-   app.append(heading, node('p', page.text));
+   app.append(heading);
+   if (state.step === 0 && lesson.description) app.append(node('p', lesson.description, 'lesson-description'));
+   if (page.prompt) app.append(node('p', page.prompt, 'screen-prompt'));
+   if (page.text) app.append(node('p', page.text));
+   if (page.tiles?.length) { const tiles = node('ul', undefined, 'word-tiles'); for (const text of page.tiles) tiles.append(node('li', text)); app.append(tiles); }
+   if (page.note) app.append(node('p', page.note, 'instruction'));
    for (const paragraph of page.paragraphs || []) app.append(node('p', paragraph, 'reading'));
    const taskArea = node('div', undefined, 'task-area');
    const navigation = node('div', undefined, 'actions');
@@ -73,12 +76,12 @@ async function start() {
    box.append(node('legend', task.prompt));
    const feedback = node('p', '', 'feedback');
    feedback.setAttribute('role', 'status'); feedback.setAttribute('aria-atomic', 'true');
-   if (task.type === 'choice') {
+   if (task.type === 'choice' || task.type === 'opinion') {
     const choices = node('div', undefined, 'choices');
     const refresh = () => {
      [...choices.children].forEach((button, i) => button.setAttribute('aria-pressed', String(data.selected === i)));
-     feedback.textContent = data.selected === undefined ? '' : isComplete(task, data) ? 'Σωστά! ' + task.explanation : 'Δοκίμασε ξανά. ' + task.hint;
-     feedback.classList.toggle('correct', isComplete(task, data));
+     feedback.textContent = data.selected === undefined ? '' : task.type === 'opinion' ? task.explanation : isComplete(task, data) ? 'Σωστά! ' + task.explanation : 'Δοκίμασε ξανά. ' + task.hint;
+     feedback.classList.toggle('correct', task.type === 'choice' && isComplete(task, data));
     };
     task.choices.forEach((text, i) => {
      const button = node('button', text, 'choice');
@@ -95,7 +98,7 @@ async function start() {
       row.feedback.textContent = !data.checked ? '' : data.values[i] === task.rows[i].answer ? 'Σωστά!' : 'Δοκίμασε ξανά. ' + task.rows[i].hint;
       row.select.setAttribute('aria-invalid', String(!!data.checked && data.values[i] !== task.rows[i].answer));
      });
-     feedback.textContent = !data.checked ? '' : isComplete(task, data) ? 'Μπράβο! Όλες οι αντιστοιχίσεις είναι σωστές.' : 'Δες τις υποδείξεις. Άλλαξε τις επιλογές που χρειάζονται και πάτησε ξανά Έλεγχος.';
+     feedback.textContent = !data.checked ? '' : isComplete(task, data) ? 'Μπράβο! Όλες οι αντιστοιχίσεις είναι σωστές. ' + (task.explanation || '') : 'Δες τις υποδείξεις. Άλλαξε τις επιλογές που χρειάζονται και πάτησε ξανά Έλεγχος.';
     };
     task.rows.forEach((row, i) => {
      const wrapper = node('div', undefined, 'match-row');
@@ -150,7 +153,7 @@ async function start() {
     const check = node('button', 'Σύγκρινε με ένα παράδειγμα', 'secondary');
     const review = node('div', undefined, 'reflection-review');
     const model = node('p', task.model);
-    review.append(node('h3', 'Ένα παράδειγμα απάντησης'), model, node('p', 'Δεν χρειάζεται να γράψεις το ίδιο. Έλεγξε τη δική σου απάντηση και σημείωσε όσα περιέχει. Αν κάτι λείπει, πρόσθεσέ το και σύγκρινε ξανά.', 'instruction'));
+    review.append(node('h3', task.modelTitle || 'Ένα παράδειγμα απάντησης'), model, node('p', 'Δεν χρειάζεται να γράψεις το ίδιο. Έλεγξε τη δική σου απάντηση και σημείωσε όσα περιέχει. Αν κάτι λείπει, πρόσθεσέ το και σύγκρινε ξανά.', 'instruction'));
     data.criteria ||= task.criteria.map(() => false);
     const checks = [];
     task.criteria.forEach((text, i) => {
@@ -161,7 +164,7 @@ async function start() {
     const refresh = () => {
      check.disabled = input.value.trim().length < task.minLength;
      review.hidden = !data.reviewed;
-     feedback.textContent = isComplete(task, data) ? 'Ολοκλήρωσες τον αυτοέλεγχο. Κράτησε τη δική σου διατύπωση!' : data.reviewed ? 'Σύγκρινε τη σκέψη σου και ολοκλήρωσε τα δύο σημεία αυτοελέγχου.' : 'Γράψε τουλάχιστον ' + task.minLength + ' χαρακτήρες για να ανοίξει το παράδειγμα. Πάρε χρόνο να εξηγήσεις το γιατί.';
+     feedback.textContent = isComplete(task, data) ? 'Ολοκλήρωσες τον αυτοέλεγχο. Κράτησε τη δική σου διατύπωση!' : data.reviewed ? 'Σύγκρινε τη σκέψη σου και ολοκλήρωσε τα σημεία αυτοελέγχου.' : 'Γράψε τουλάχιστον ' + task.minLength + ' χαρακτήρες για να ανοίξει το παράδειγμα. Πάρε χρόνο να εξηγήσεις το γιατί.';
     };
     input.oninput = () => { data.text = input.value; data.reviewed = false; data.criteria = task.criteria.map(() => false); checks.forEach(c => c.checked = false); refresh(); changed(); };
     check.onclick = () => { data.reviewed = true; refresh(); changed(); };
@@ -171,9 +174,10 @@ async function start() {
   }
   function renderEnd() {
    const heading = node('h2', 'Μπράβο! Ολοκλήρωσες το μάθημα.');
-   const exitTasks = lesson.pages.at(-1).tasks;
+   const exitTasks = lesson.pages.filter(page => page.screenType === 'exit').flatMap(page => page.tasks).filter(task => task.type === 'choice');
    const firstCorrect = exitTasks.filter(task => state.tasks[task.id]?.first === task.answer).length;
-   app.append(heading, node('p', 'Ολοκλήρωσες τις 12 οθόνες και τον αυτοέλεγχο των απαντήσεών σου. Στο exit ticket απάντησες σωστά με την πρώτη προσπάθεια σε ' + firstCorrect + ' από ' + exitTasks.length + ' ερωτήσεις.'), node('p', 'Θυμήσου: οι κανόνες υπηρετούν το καλό του ανθρώπου. Η φροντίδα και η αγάπη μάς βοηθούν να καταλαβαίνουμε τον σκοπό τους.'));
+   app.append(heading, node('p', 'Ολοκλήρωσες τις ' + lesson.pages.length + ' οθόνες του μαθήματος και τις δραστηριότητές σου.'));
+   if (exitTasks.length) app.append(node('p', 'Στο exit ticket απάντησες σωστά με την πρώτη προσπάθεια σε ' + firstCorrect + ' από ' + exitTasks.length + ' ερωτήσεις.'));
    const reflections = node('details'); reflections.append(node('summary', 'Οι σκέψεις που έγραψα'));
    for (const page of lesson.pages) for (const task of page.tasks) if (task.type === 'reflect') reflections.append(node('h3', page.title), node('p', state.tasks[task.id]?.text || '', 'saved-writing'));
    app.append(reflections);
@@ -192,8 +196,12 @@ async function start() {
   function focusHeading(heading) { heading.tabIndex = -1; heading.focus(); heading.scrollIntoView({block:'start'}); }
   render();
  } catch (error) {
-  message('Το μάθημα δεν μπόρεσε να φορτώσει.');
-  const retry = node('button', 'Δοκίμασε ξανά'); retry.onclick = start; app.append(retry); console.error(error);
+  if (request !== loadRequest) return;
+  message(LOAD_ERROR);
+  const retry = node('button', 'Δοκίμασε ξανά'); retry.onclick = start; app.append(retry); console.error('Lesson loading failed:', error);
+ } finally {
+  if (request === loadRequest) app.setAttribute('aria-busy', 'false');
  }
 }
 start();
+window.addEventListener('pageshow', event => { if (event.persisted) start(); });
