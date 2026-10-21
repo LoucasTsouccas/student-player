@@ -1,6 +1,6 @@
 // Public CSV is the only runtime content source. No credential or private Sheet API.
 import {validateLesson, validOrder} from './lesson-model.js';
-export const FEED_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQozbNxutfZHufMx13LBfj8INdXfssINH5ZNqUPUKm94tjxlyc3pTVb9MKhUPfxWAp5TBqcKaPWuqU3/pub?gid=200004&single=true&output=csv';
+export const FEED_URL = 'https://docs.google.com/spreadsheets/d/1K5p8weVhnbY6ygdl2rmreslnfeNsHB_vw0X0E_FhuoY/export?format=csv&gid=236172835';
 export const LOAD_ERROR = 'Το μάθημα δεν μπόρεσε να φορτωθεί. Δοκίμασε ξανά σε λίγο.';
 export const SCREEN_TYPES = ['intro','info','story','sequence','mcq','interpretation','before_after','compare','matching','application','exit'];
 const COLUMNS = ['record_type','class_key','lesson_id','step_no','type','title','prompt','content','choices_json','correct_answer','feedback'];

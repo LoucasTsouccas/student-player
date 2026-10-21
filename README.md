@@ -17,13 +17,13 @@
 
 ## Πηγή μαθημάτων
 
-Το assets/feed.js ορίζει το FEED_URL που δόθηκε για την καρτέλα PublicFeed (gid=200004):
+Το assets/feed.js ορίζει το FEED_URL που δόθηκε για την καρτέλα PublicFeed (gid=236172835):
 
-https://docs.google.com/spreadsheets/d/e/2PACX-1vQozbNxutfZHufMx13LBfj8INdXfssINH5ZNqUPUKm94tjxlyc3pTVb9MKhUPfxWAp5TBqcKaPWuqU3/pub?gid=200004&single=true&output=csv
+https://docs.google.com/spreadsheets/d/1K5p8weVhnbY6ygdl2rmreslnfeNsHB_vw0X0E_FhuoY/export?format=csv&gid=236172835
 
-Η καρτέλα πρέπει να έχει δημοσιευτεί στον ιστό ως CSV και το URL να λειτουργεί χωρίς σύνδεση. Ένα URL /edit δεν είναι δημόσιο CSV. Αν επιστρέφεται 401/404 ή σελίδα HTML, το μάθημα δεν φορτώνει. Η εφαρμογή δεν χρησιμοποιεί το συνδεδεμένο Google account του διαχειριστή, credentials, ιδιωτικά APIs, iframe ή ανακατεύθυνση σε Google Sheets.
+Το Sheet πρέπει να είναι διαθέσιμο ως «Anyone with the link → Viewer», ώστε το endpoint /export?format=csv να επιστρέφει CSV χωρίς σύνδεση. Εναλλακτικά υποστηρίζεται δημόσιο CSV από «Δημοσίευση στον ιστό». Ένα URL /edit δεν είναι δημόσιο CSV. Αν επιστρέφεται 401/404 ή σελίδα HTML, το μάθημα δεν φορτώνει. Η εφαρμογή δεν χρησιμοποιεί το συνδεδεμένο Google account του διαχειριστή, credentials, ιδιωτικά APIs, iframe ή ανακατεύθυνση σε Google Sheets.
 
-Για δημοσίευση από το Sheets: Αρχείο → Κοινή χρήση → Δημοσίευση στον ιστό → PublicFeed → CSV → Δημοσίευση. Αν προκύψει διαφορετικό publication URL, απαιτείται μία αλλαγή του FEED_URL· στη συνέχεια οι αλλαγές περιεχομένου και αναθέσεων δεν απαιτούν deployment. Η υπηρεσία Google μπορεί να χρειαστεί λίγο χρόνο για να ανανεώσει το δικό της δημοσιευμένο αντίγραφο.
+Το ενεργό endpoint χρησιμοποιεί εξαγωγή CSV από το κοινόχρηστο Public Feed Sheet, gid=236172835. Επιβεβαιώστε την ανώνυμη πρόσβαση με αποσυνδεδεμένο browser. Αν αλλάξει το αρχείο ή η καρτέλα, απαιτείται μία αλλαγή του FEED_URL· οι καθημερινές αλλαγές περιεχομένου και αναθέσεων στο ίδιο Sheet δεν απαιτούν deployment. Η υπηρεσία Google μπορεί να χρειαστεί λίγο χρόνο για να ανανεώσει τις αποκρίσεις της.
 
 ### Ανανέωση και σφάλματα
 
