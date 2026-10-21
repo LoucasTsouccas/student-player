@@ -1,7 +1,10 @@
 import {isComplete, pageComplete, freshState, restoreState} from './lesson-model.js';
 import {fetchLesson, LOAD_ERROR} from './feed.js';
+import {isSafeKey, progressKey} from './student-context.js';
 const app = document.querySelector('#app');
 const grade = document.body.dataset.grade;
+const classKey = document.body.dataset.classKey ?? grade;
+const profile = document.body.dataset.profile ?? 'default';
 const labels = {a:'Α΄', b:'Β΄', c:'Γ΄', d:'Δ΄', e:'Ε΄', st:'Στ΄'};
 function node(tag, text, className) {
  const el = document.createElement(tag);
@@ -13,16 +16,18 @@ function message(text) { app.replaceChildren(node('p', text)); }
 let loadRequest = 0;
 async function start() {
  if (!labels[grade]) { message('Δεν βρέθηκε η τάξη.'); return; }
- document.title = labels[grade] + ' Τάξη – Μάθημα Σήμερα | Student Player';
+ const classLabel = document.body.dataset.classLabel || labels[grade] + ' Τάξη';
+ document.title = classLabel + ' – Μάθημα Σήμερα | Student Player';
  const request = ++loadRequest;
  message('Το μάθημα φορτώνει…');
  app.setAttribute('aria-busy', 'true');
  try {
-  const lesson = await fetchLesson(grade);
+  if (!isSafeKey(profile)) throw new Error('Invalid profile');
+  const lesson = await fetchLesson(classKey);
   if (request !== loadRequest) return;
   if (lesson === null) { message('Δεν υπάρχει ενεργό μάθημα για σήμερα'); return; }
   const id = lesson.id;
-  const storageKey = 'student-player:' + grade + ':' + id;
+  const storageKey = progressKey(profile, classKey, id);
   let state = freshState();
   let storageAvailable = true;
   try { state = restoreState(sessionStorage.getItem(storageKey), lesson); } catch { storageAvailable = false; }

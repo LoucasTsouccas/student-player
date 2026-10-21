@@ -1,5 +1,6 @@
 // Public CSV is the only runtime content source. No credential or private Sheet API.
 import {validateLesson, validOrder} from './lesson-model.js';
+import {isSafeKey} from './student-context.js';
 export const FEED_URL = 'https://docs.google.com/spreadsheets/d/1K5p8weVhnbY6ygdl2rmreslnfeNsHB_vw0X0E_FhuoY/export?format=csv&gid=236172835';
 export const LOAD_ERROR = 'Το μάθημα δεν μπόρεσε να φορτωθεί. Δοκίμασε ξανά σε λίγο.';
 export const SCREEN_TYPES = ['intro','info','story','sequence','mcq','interpretation','before_after','compare','matching','application','exit'];
@@ -124,7 +125,7 @@ function revision(value) {
  return 'csv-' + hash.toString(16);
 }
 export function lessonForClass(rows, grade) {
- if (!['a','b','c','d','e','st'].includes(grade)) throw new Error('Unknown grade');
+ if (!isSafeKey(grade)) throw new Error('Invalid class key');
  const assignments = rows.filter(row => row.record_type === 'assignment' && row.class_key.toLowerCase() === grade);
  if (assignments.length > 1) throw new Error('Ambiguous assignment');
  if (!assignments.length || !assignments[0].lesson_id) return null;
